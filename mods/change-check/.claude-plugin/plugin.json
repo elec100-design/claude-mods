@@ -1,0 +1,6 @@
+{
+  "name": "change-check",
+  "version": "0.1.0",
+  "description": "Claude가 수정한 파일을 응답이 끝날 때 자동 검사하고, 오류와 오래된 미커밋 변경을 입력창 위에 알려줍니다",
+  "types": "./types/index.d.ts"
+}

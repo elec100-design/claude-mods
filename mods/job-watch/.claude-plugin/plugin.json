@@ -1,0 +1,6 @@
+{
+  "name": "job-watch",
+  "version": "0.1.0",
+  "description": "오래 걸리는 작업을 모델 호출 없이 감시하고, 끝나거나 실패하면 알려줍니다",
+  "types": "./types/index.d.ts"
+}

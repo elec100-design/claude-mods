@@ -1,0 +1,6 @@
+{
+  "name": "context-band",
+  "version": "0.1.0",
+  "description": "입력창 위에 컨텍스트 사용 현황(숫자, 가로 막대, 카테고리별 색상)을 보여줍니다",
+  "types": "./types/index.d.ts"
+}

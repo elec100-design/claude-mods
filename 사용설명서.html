@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code 모드 5종</title>
+<style>
+:root {
+  --bg: #FAF9F5; --surface: #EFE9DE; --ink: #141413; --ink-2: rgba(20,20,19,.68); --ink-3: rgba(20,20,19,.45);
+  --line: rgba(20,20,19,.14); --coral: #CC785C; --navy: #181715; --navy-2: #252320; --cream: #FAF9F5;
+  --teal: #5DB8A6; --amber: #E8A55A; --indigo: #7C8CF8; --red: #E06C5A; --gray: #9C9A92;
+  --code-bg: #EFE9DE;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1B1A18; --surface: #252320; --ink: #F2EFE7; --ink-2: rgba(242,239,231,.72); --ink-3: rgba(242,239,231,.5);
+    --line: rgba(242,239,231,.14); --navy: #0F0E0D; --navy-2: #1A1917; --code-bg: #252320;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1B1A18; --surface: #252320; --ink: #F2EFE7; --ink-2: rgba(242,239,231,.72); --ink-3: rgba(242,239,231,.5);
+  --line: rgba(242,239,231,.14); --navy: #0F0E0D; --navy-2: #1A1917; --code-bg: #252320;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.75 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px 120px; }
+header.hero { padding: 72px 0 40px; border-bottom: 1px solid var(--line); margin-bottom: 40px; }
+.kicker { font: 600 13px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-2); display: flex; gap: 10px; align-items: center; }
+.kicker::before { content: "✱"; color: var(--coral); font-size: 16px; }
+h1 { font: 800 clamp(36px, 6vw, 60px)/1.1 inherit; letter-spacing: -.02em; margin: 16px 0 12px; }
+h2 { font-size: 30px; line-height: 1.25; letter-spacing: -.01em; margin: 80px 0 8px; padding-top: 12px; }
+h3 { font-size: 20px; margin: 36px 0 8px; }
+p, li { color: var(--ink-2); }
+strong { color: var(--ink); }
+a { color: var(--coral); }
+.lead { font-size: 20px; color: var(--ink-2); max-width: 720px; }
+code, kbd { font: 14.5px ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-bg); padding: 2px 6px; border-radius: 5px; color: var(--ink); }
+pre { background: var(--navy); color: #FAF9F5; padding: 18px 20px; border-radius: 10px; overflow-x: auto; font: 14.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { background: none; padding: 0; color: inherit; }
+table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15.5px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--ink); font-weight: 700; background: var(--surface); }
+td { color: var(--ink-2); }
+.toc { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; margin: 28px 0 0; padding: 0; list-style: none; }
+.toc a { display: block; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600; }
+.toc a span { display: block; font: 12px ui-monospace, Menlo, monospace; color: var(--ink-3); font-weight: 400; }
+.card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 20px 22px; margin: 18px 0; }
+.note { border-left: 3px solid var(--coral); padding: 10px 16px; background: var(--surface); border-radius: 0 10px 10px 0; margin: 18px 0; }
+.note p { margin: 4px 0; }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.stat b { display: block; font-size: 34px; color: var(--ink); line-height: 1.2; }
+video { width: 100%; border-radius: 12px; border: 1px solid var(--line); background: #000; display: block; }
+figure { margin: 22px 0; }
+figcaption { font-size: 14px; color: var(--ink-3); margin-top: 8px; }
+.steps { counter-reset: s; list-style: none; padding: 0; }
+.steps li { counter-increment: s; position: relative; padding-left: 44px; margin: 14px 0; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: var(--bg); font-weight: 700; display: grid; place-items: center; font-size: 15px; }
+
+/* ---- Band mockups (the real Claude Code UI, recreated) ---- */
+.band { background: var(--navy); color: #FAF9F5; border-radius: 12px; padding: 14px 18px; font: 14.5px/1.5 ui-monospace, "SF Mono", Menlo, monospace; overflow: hidden; }
+.band .ln { display: flex; align-items: center; gap: 10px; white-space: nowrap; min-height: 30px; }
+.band .dim { color: rgba(250,249,245,.55); }
+.band .btn { display: inline-block; border: 1px solid rgba(250,249,245,.4); border-radius: 5px; padding: 0 9px; font-size: 13px; line-height: 22px; font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; }
+.band .btn.hot { border-color: var(--coral); background: rgba(204,120,92,.25); }
+.band .push { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.tag-plan { color: var(--indigo); font-weight: 800; font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; }
+.tag-todo { color: var(--amber); font-weight: 800; font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; }
+.prompt { margin-top: 8px; border: 1px solid rgba(250,249,245,.25); border-radius: 10px; padding: 8px 14px; color: rgba(250,249,245,.5); font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; }
+.bar { display: flex; width: 300px; height: 14px; border-radius: 2px; overflow: hidden; background: repeating-linear-gradient(90deg, rgba(250,249,245,.2) 0 4px, rgba(250,249,245,.06) 4px 6px); flex-shrink: 1; }
+.bar i { display: block; height: 100%; transform-origin: left; animation: grow 5s ease-out infinite; }
+@keyframes grow { 0% { transform: scaleX(0); } 25%, 100% { transform: scaleX(1); } }
+
+/* swap: two or more states cycling in place */
+.swap { display: inline-grid; }
+.swap > * { grid-area: 1 / 1; opacity: 0; animation: cyc var(--t, 6s) infinite; }
+@keyframes cyc { 0%, 4% { opacity: 0; } 8%, 30% { opacity: 1; } 34%, 100% { opacity: 0; } }
+.swap > *:nth-child(2) { animation-delay: calc(var(--t, 6s) / 3); }
+.swap > *:nth-child(3) { animation-delay: calc(var(--t, 6s) / 3 * 2); }
+
+/* ---- Flow diagrams (SVG) ---- */
+svg.flow { width: 100%; height: auto; display: block; }
+svg.flow text { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; fill: var(--ink); }
+svg.flow .mono { font-family: ui-monospace, Menlo, monospace; }
+svg.flow .box { fill: var(--surface); stroke: var(--line); }
+svg.flow .dark { fill: var(--navy); }
+svg.flow .wire { stroke: var(--ink-3); stroke-width: 2; fill: none; }
+svg.flow .wire.dash { stroke-dasharray: 6 6; animation: dash 1.2s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -12; } }
+svg.flow .pulse { animation: pulse 2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes pulse { 0%, 100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1); } }
+svg.flow .travel { animation: travel var(--d, 4s) ease-in-out infinite; }
+@keyframes travel { 0% { transform: translateX(0); opacity: 0; } 10% { opacity: 1; } 80% { opacity: 1; } 100% { transform: translateX(var(--x, 300px)); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+  .swap > *:first-child { opacity: 1; }
+}
+.theme-toggle { position: fixed; right: 16px; top: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .band { font-size: 12.5px; }
+  .bar { width: 120px; }
+  h2 { font-size: 25px; }
+}
+</style>
+</head>
+<body>
+<button class="theme-toggle" type="button" onclick="(function(){var r=document.documentElement;var d=r.getAttribute('data-theme')==='dark'||(!r.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme: dark)').matches);r.setAttribute('data-theme',d?'light':'dark');})()">라이트/다크</button>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Claude Code Mods · 사용설명서</div>
+  <h1>Claude Code 모드 5종</h1>
+  <p class="lead">Claude Code를 더 빠르고 저렴하게 쓰게 해주는 5가지 추가 기능입니다. 입력창 위에 상태를 보여주고, 오래 걸리는 작업·로그인·단계 계획·코드 검사를 대신 챙겨 줍니다.</p>
+  <ul class="toc">
+    <li><a href="#install">설치하기<span>install.sh · Finder 복사</span></a></li>
+    <li><a href="#screen">화면 한눈에 보기<span>입력창 위 밴드 구성</span></a></li>
+    <li><a href="#m1">1. context-band<span>캐시·컨텍스트 가드</span></a></li>
+    <li><a href="#m2">2. job-watch<span>작업 감시</span></a></li>
+    <li><a href="#m3">3. handoff<span>사용자 액션 핸드오프</span></a></li>
+    <li><a href="#m4">4. plan-track<span>단계 진행 트래커</span></a></li>
+    <li><a href="#m5">5. change-check<span>코드 변경 확인</span></a></li>
+    <li><a href="#ref">참고표 · 문제 해결<span>도구, 명령, FAQ</span></a></li>
+  </ul>
+</header>
+
+<figure>
+  <video src="media/claude-mods-explainer.mp4" controls preload="metadata" poster="media/scenes.jpg"></video>
+  <figcaption>62초 설명 영상: 인트로 → 사용 분석 → 모드 1~5 → 설치. 영상이 재생되지 않으면 <code>media/claude-mods-explainer.mp4</code>를 직접 여세요.</figcaption>
+</figure>
+
+<h2 id="why">왜 만들었나</h2>
+<p>지난 30개 Claude Code 세션 기록을 집계해 보니, 비용과 시간이 새는 곳이 분명했습니다.</p>
+<div class="grid3">
+  <div class="card stat"><b>약 1,000만 토큰</b>1시간 넘게 쉬었다가 다시 질문할 때 캐시가 만료되어 대화 전체를 다시 기록한 양. 전체 캐시 기록의 74%, 입력 비용의 약 30%(추정).</div>
+  <div class="card stat"><b>92회 + 30회</b>오래 걸리는 작업을 Claude가 직접 감시(Monitor, <code>sleep</code> 루프). 깨울 때마다 약 23만 토큰을 다시 읽음.</div>
+  <div class="card stat"><b>140 : 15</b>파일 수정 대비 검사 횟수. 같은 파일을 8~11번 고치거나, 커밋하지 않은 변경이 33시간 쌓인 경우도 있었음.</div>
+</div>
+<p>여기에 로그인·인증 단계마다 "확인해줘"를 주고받는 왕복, P1→P2→P3 단계를 매번 직접 지시하는 수고가 더해졌습니다. 다섯 모드는 이 다섯 가지를 하나씩 해결합니다.</p>
+
+<h2 id="install">설치하기</h2>
+<div class="note"><p><strong>필요한 것</strong>: Claude Code 2.1.29x 이상(데스크탑 앱의 Code 탭 또는 터미널 <code>claude</code>). 모드는 사용자 폴더 <code>~/.claude/skills/</code>에 넣으면 새 세션부터 자동으로 켜집니다. 별도 설정 파일은 바꾸지 않습니다.</p></div>
+
+<h3>방법 A — Finder로 복사 (권장, 권한 설정 불필요)</h3>
+<ol class="steps">
+  <li>이 폴더의 <code>mods</code> 안에 있는 다섯 폴더(<code>context-band</code>, <code>job-watch</code>, <code>handoff</code>, <code>plan-track</code>, <code>change-check</code>)를 선택합니다.</li>
+  <li>새 Finder 창에서 <kbd>⇧⌘G</kbd>를 누르고 <code>~/.claude</code>로 이동합니다. 안에 <code>skills</code> 폴더가 없으면 만듭니다.</li>
+  <li>다섯 폴더를 <code>~/.claude/skills/</code> 안으로 복사합니다.</li>
+  <li>Claude Code에서 <strong>새 세션</strong>을 엽니다. 입력창 위에 <code>Context</code> 막대가 보이면 설치 완료입니다.</li>
+</ol>
+
+<h3>방법 B — 설치 스크립트</h3>
+<pre><code>sh "이 폴더 경로/install.sh"</code></pre>
+<p>다섯 모드를 <code>~/.claude/skills/</code>로 복사하고 각각 검사(<code>claude plugin validate</code>)합니다. 다시 실행하면 최신 버전으로 덮어씁니다.</p>
+<div class="note"><p><strong>"Operation not permitted"가 나오면</strong>: macOS가 터미널의 iCloud Drive 접근을 막은 것입니다. 방법 A를 쓰거나, <em>시스템 설정 → 개인정보 보호 및 보안 → 파일 및 폴더 → 터미널</em>에서 iCloud Drive 접근을 켠 뒤 터미널을 다시 열고 실행하세요. 또는 폴더를 다운로드 폴더 등으로 먼저 옮긴 뒤 실행해도 됩니다.</p></div>
+
+<h3>설치 확인 · 끄기 · 제거</h3>
+<pre><code>claude plugin list                          # context-band@skills-dir 등 5개가 ✔ loaded
+claude plugin disable job-watch@skills-dir  # 끄기 (enable 로 다시 켜기)
+rm -r ~/.claude/skills/job-watch            # 완전히 제거</code></pre>
+
+<h2 id="screen">화면 한눈에 보기</h2>
+<p>모드들은 입력창 바로 위 띠(밴드)에 한 줄씩 나타납니다. 할 일이 없으면 그 줄은 보이지 않습니다. 위에서부터 다음 순서로 쌓입니다(순서는 설치 환경에 따라 조금 다를 수 있습니다).</p>
+<figure>
+<div class="band">
+  <div class="ln"><span class="tag-todo">할 일</span><b>NotebookLM 다시 로그인</b><span class="btn">완료</span><span class="btn">취소</span><span class="dim">← handoff</span></div>
+  <div class="ln"><span class="tag-plan">계획</span><b>LLM WIKI 개선</b><span style="color:var(--teal)">✔✔</span><span style="color:var(--indigo)">▶</span><span class="dim">○ 2/4 · 3. P3 sources 복원</span><span class="push"><span class="btn">다음 단계</span><span class="btn">×</span></span></div>
+  <div class="ln"><span class="tag-plan">검사</span><span style="color:var(--teal)">✔ 파일 2개 · python, sh -n</span><span class="dim">← change-check</span><span class="push"><span class="btn">×</span></span></div>
+  <div class="ln"><b>Context</b><span class="bar"><i style="width:3%;background:var(--gray)"></i><i style="width:8%;background:var(--teal)"></i><i style="width:10%;background:var(--indigo)"></i><i style="width:5%;background:var(--amber)"></i><i style="width:18%;background:#6B6AD8"></i></span><span>435.9k / 1.0M (44%)</span></div>
+  <div class="ln"><span class="dim">░ Free space 531k · 53.1%</span><span class="push"><span class="dim">캐시 47분</span><span class="btn">압축</span><span class="btn">인계 노트</span></span></div>
+  <div class="prompt">입력창</div>
+</div>
+<figcaption>오른쪽에 <code>작업 감시</code> 창(job-watch)이 따로 열리고, 상태줄에 "작업 감시 1개"가 표시됩니다.</figcaption>
+</figure>
+
+<!-- ===================== MOD 1 ===================== -->
+<h2 id="m1">1. context-band — 캐시·컨텍스트 가드</h2>
+<p class="lead">지금 대화가 얼마나 큰지, 캐시가 언제 만료되는지 항상 보여주고, 비싼 재기록이 일어나기 직전에 선택지를 줍니다.</p>
+
+<h3>화면</h3>
+<figure>
+<div class="band">
+  <div class="ln"><b>Context</b><span class="bar"><i style="width:3%;background:var(--gray)"></i><i style="width:8%;background:var(--teal)"></i><i style="width:10%;background:var(--indigo)"></i><i style="width:5%;background:var(--amber)"></i><i style="width:18%;background:#6B6AD8"></i></span><span>435.9k / 1.0M (44%)</span></div>
+  <div class="ln"><span class="dim">░ Free space 531k · 53.1%</span><span class="push"><span class="swap" style="--t:9s"><span class="dim">캐시 47분</span><span style="color:var(--amber)">캐시 8분</span><span style="color:var(--red)">캐시 만료</span></span><span class="btn">압축</span><span class="btn">인계 노트</span></span></div>
+</div>
+<figcaption>막대는 /context와 같은 항목(시스템 프롬프트, 도구, 스킬, 대화 등)을 색으로 나눠 보여줍니다. 막대의 한 부분에 마우스를 올리면 둘째 줄에 그 항목의 이름·토큰·비율이 나타납니다.</figcaption>
+</figure>
+
+<table>
+  <tr><th style="width:28%">요소</th><th>의미</th></tr>
+  <tr><td>막대 + <code>435.9k / 1.0M (44%)</code></td><td>현재 사용량 / 전체 용량. 응답이 끝날 때마다 갱신(로컬 추정이라 API 호출 없음).</td></tr>
+  <tr><td><code>░ Free space</code></td><td>남은 공간. 항상 표시되며, 다른 칸에 마우스를 올리면 그 항목이 앞에 추가로 나타납니다.</td></tr>
+  <tr><td><code>캐시 47분</code></td><td>마지막 응답 후 1시간 캐시가 남은 시간. 10분 이하 주황, 지나면 빨간 "캐시 만료".</td></tr>
+  <tr><td><kbd>압축</kbd></td><td>컨텍스트가 20만 토큰을 넘으면 나타남. <code>/compact</code>와 같은 압축.</td></tr>
+  <tr><td><kbd>인계 노트</kbd></td><td>현재 대화를 요약한 <code>Handoff.md</code>를 세션 폴더에 쓰고, 새 세션 첫 메시지를 클립보드에 복사.</td></tr>
+</table>
+
+<h3>캐시 만료 시 전송 보류</h3>
+<p>1시간 넘게 쉬었다가, 컨텍스트가 10만 토큰 이상인 상태에서 메시지를 보내면 전송을 잠시 멈추고 둘째 줄이 바뀝니다.</p>
+<figure>
+<div class="band">
+  <div class="ln"><b>Context</b><span class="bar"><i style="width:3%;background:var(--gray)"></i><i style="width:8%;background:var(--teal)"></i><i style="width:10%;background:var(--indigo)"></i><i style="width:5%;background:var(--amber)"></i><i style="width:18%;background:#6B6AD8"></i></span><span>233.0k / 1.0M (23%)</span></div>
+  <div class="ln"><span style="color:var(--amber)">⚠ 캐시 만료 · 2시간 13분 쉼 · 233k 재기록</span><span class="btn">그대로 보내기</span><span class="btn hot">압축 후 보내기</span><span class="btn">취소</span></div>
+</div>
+</figure>
+<ul>
+  <li><strong>그대로 보내기</strong> — 재기록 비용을 감수하고 원래 메시지를 보냅니다.</li>
+  <li><strong>압축 후 보내기</strong> — 대화를 먼저 압축해 재기록 양을 줄인 뒤 보냅니다.</li>
+  <li><strong>취소</strong> — 보내지 않고 입력창에 글을 되돌립니다. 이때 <kbd>인계 노트</kbd>로 새 세션을 시작하는 것도 좋은 선택입니다.</li>
+</ul>
+<p>휴대폰 등 다른 기기에서 보낸 메시지, 예약 작업, 이미지·파일이 첨부된 메시지는 멈추지 않고 바로 보냅니다.</p>
+
+<h3>작동 방식</h3>
+<figure>
+<svg class="flow" viewBox="0 0 900 230" role="img" aria-label="응답 종료 시각 저장, 1분마다 카운트다운, 전송 직전 검사의 흐름">
+  <rect class="box" x="10" y="60" width="200" height="90" rx="10"/><text x="110" y="100" text-anchor="middle" font-weight="700">응답 종료</text><text x="110" y="126" text-anchor="middle" font-size="14">시각 저장(세션별)</text>
+  <rect class="box" x="350" y="60" width="200" height="90" rx="10"/><text x="450" y="100" text-anchor="middle" font-weight="700">1분마다</text><text x="450" y="126" text-anchor="middle" font-size="14">남은 시간 계산</text>
+  <rect class="box" x="690" y="60" width="200" height="90" rx="10"/><text x="790" y="100" text-anchor="middle" font-weight="700">전송 직전</text><text x="790" y="126" text-anchor="middle" font-size="14">1시간↑ & 10만↑ ?</text>
+  <path class="wire dash" d="M210 105 H350"/><path class="wire dash" d="M550 105 H690"/>
+  <circle class="pulse" cx="450" cy="40" r="10" fill="var(--amber)"/><text x="470" y="45" font-size="14" class="mono">캐시 47분 → 만료</text>
+  <path class="wire" d="M790 150 V190 H560"/><text x="560" y="215" font-size="14">예 → 보류하고 선택지 표시 · 아니오 → 그대로 전송</text>
+</svg>
+<figcaption>마지막 응답 시각은 세션별로 저장되어, 앱을 껐다 켜거나 세션을 다시 열어도 유지됩니다.</figcaption>
+</figure>
+
+<h3>인계 노트(Handoff.md)로 새 세션 이어가기</h3>
+<ol class="steps">
+  <li><kbd>인계 노트</kbd>를 누릅니다. 버튼이 "인계 노트 작성 중…"으로 바뀝니다(수 초~1분).</li>
+  <li>세션 폴더에 <code>Handoff.md</code>가 생깁니다. 목표 · 현재 상태 · 완료한 일 · 남은 일 · 결정 사항과 제약 · 관련 파일과 경로 · 주의할 점 · 새 세션 첫 지시로 구성됩니다. 기존 파일은 <code>Handoff.prev.md</code>로 보관됩니다.</li>
+  <li>클립보드에 "<code>…/Handoff.md 를 읽고 이어서 진행해줘.</code>"가 복사됩니다. 같은 폴더에서 새 세션을 열고 <kbd>⌘V</kbd>로 붙여 넣어 보내면 됩니다.</li>
+</ol>
+<div class="note"><p>노트는 현재 대화를 캐시에서 그대로 읽어 따로 생성하므로, 대화에 새 턴이 추가되지 않고 비용도 일반 턴보다 적습니다.</p></div>
+
+<h3>조정할 수 있는 값</h3>
+<p><code>~/.claude/skills/context-band/hooks/register.tsx</code> 맨 위 상수: <code>CACHE_TTL_MS</code>(캐시 수명, 기본 1시간), <code>GUARD_MIN_TOKENS</code>(보류 기준, 10만), <code>COMPACT_HINT_TOKENS</code>(압축 권장 기준, 20만). 계정이 5분 캐시를 쓰는 경우 카운트다운이 실제와 맞지 않을 수 있습니다.</p>
+
+<!-- ===================== MOD 2 ===================== -->
+<h2 id="m2">2. job-watch — 작업 감시</h2>
+<p class="lead">백업·해시·인제스트처럼 오래 걸리는 작업을 Claude 대신 모드가 지켜보고, 끝나면 결과를 한 번만 전달합니다.</p>
+
+<h3>작동 방식</h3>
+<figure>
+<svg class="flow" viewBox="0 0 900 260" role="img" aria-label="Claude가 watch_job으로 작업을 넘기면 모드가 주기적으로 확인하고, 끝나면 결과를 돌려줌">
+  <rect class="box" x="10" y="80" width="170" height="90" rx="10"/><text x="95" y="132" text-anchor="middle" font-size="26">Claude</text>
+  <path class="wire" d="M180 110 H420"/><text x="300" y="98" text-anchor="middle" class="mono" font-size="15">watch_job</text>
+  <rect class="dark" x="420" y="40" width="470" height="180" rx="12"/>
+  <text x="440" y="72" font-size="15" fill="#FAF9F5" style="fill:#FAF9F5" font-weight="700">작업 감시</text>
+  <circle class="pulse" cx="448" cy="108" r="7" fill="var(--teal)"/><text x="464" y="113" class="mono" font-size="15" style="fill:#FAF9F5">photo-hash · 실행 중</text>
+  <text x="464" y="145" class="mono" font-size="14" style="fill:rgba(250,249,245,.6)">hashed 500 / 900</text>
+  <text x="464" y="190" class="mono" font-size="14" style="fill:rgba(250,249,245,.6)">확인 7회 · 모델 호출 0회</text>
+  <path class="wire" d="M420 200 H180" style="stroke:var(--coral)"/>
+  <g class="travel" style="--x:-200px;--d:4s"><rect x="330" y="210" width="150" height="30" rx="15" fill="var(--coral)"/><text x="405" y="230" text-anchor="middle" font-size="13" style="fill:#FAF9F5">[job-watch] 완료</text></g>
+</svg>
+<figcaption>모드가 확인 명령(예: <code>ssh nas 'tail -1 ~/hash.log'</code>)을 주기적으로 직접 실행합니다. 이 동안 모델 호출은 없습니다.</figcaption>
+</figure>
+<ol class="steps">
+  <li>Claude가 긴 작업을 시작한 뒤 <code>watch_job</code> 도구로 넘깁니다: 이름, 확인 명령, 완료 패턴(예: <code>ALL DONE</code>), 실패 패턴(예: <code>ABORT</code>), 확인 간격(기본 60초, 최소 15초).</li>
+  <li>Claude는 바로 턴을 끝냅니다. 모드는 간격마다 확인 명령을 실행하고 <strong>작업 감시</strong> 창과 상태줄에 마지막 출력 줄·경과 시간·확인 횟수를 보여줍니다.</li>
+  <li>완료 패턴이 나오거나, 실패 패턴이 나오거나, 확인 명령이 3번 연속 실패하거나, 감시 시간(기본 24시간)이 끝나면 알림·데스크탑 알림을 띄우고 Claude에게 결과 메시지를 한 번 보냅니다.</li>
+</ol>
+<h3>사용하는 법</h3>
+<ul>
+  <li>Claude에게 오래 걸리는 작업을 맡기면 자동으로 이 도구를 씁니다. 직접 지시해도 됩니다: "끝나면 알려줘, 감시는 job-watch로".</li>
+  <li><code>/jobs</code> — 작업 감시 창 열기. 각 작업의 <kbd>중지</kbd> 버튼으로 감시를 멈출 수 있습니다(Claude에게는 알리지 않음).</li>
+</ul>
+<div class="note"><p>사진 정리 세션 한 번에서 Monitor로 깨운 77회 × 약 25만 토큰 읽기가, 이 모드로는 완료 메시지 1회로 바뀝니다.</p></div>
+
+<!-- ===================== MOD 3 ===================== -->
+<h2 id="m3">3. handoff — 사용자 액션 핸드오프</h2>
+<p class="lead">로그인·비밀번호·2FA·브라우저 승인처럼 사람만 할 수 있는 일을 입력창 위에 "할 일"로 띄우고, 끝났는지 확인까지 자동으로 해서 Claude에게 넘깁니다.</p>
+<h3>화면</h3>
+<figure>
+<div class="band">
+  <div class="ln"><span class="tag-todo">할 일</span><b>NotebookLM 다시 로그인</b><span class="swap" style="--t:8s"><span class="btn">완료</span><span class="btn">다시 확인</span><span class="btn">완료</span></span><span class="btn">취소</span></div>
+  <div class="ln dim" style="font-family:-apple-system,'Apple SD Gothic Neo',sans-serif">  터미널에서 nlm login 실행 후 브라우저에서 로그인</div>
+  <div class="ln"><span class="swap" style="--t:8s"><span class="dim">  $ nlm login --check …</span><span style="color:var(--red)">  ✘ 확인 실패: credentials expired</span><span style="color:var(--teal)">  ✔ 성공 → Claude에게 전달</span></span></div>
+</div>
+</figure>
+<ul>
+  <li><kbd>완료</kbd> — 확인 명령이 있으면 먼저 실행합니다. 성공하면 결과를 붙여 Claude에게 보내고 줄이 사라집니다. 실패하면 이유가 표시되고 버튼이 <kbd>다시 확인</kbd> / <kbd>그래도 전달</kbd>로 바뀝니다.</li>
+  <li><strong>자동 확인</strong> — 확인 명령이 있으면 15초마다(최대 30분) 실행해서, 로그인이 끝나는 순간 버튼을 누르지 않아도 완료 처리합니다.</li>
+  <li><kbd>취소</kbd> — Claude에게 아무것도 보내지 않고 줄을 지웁니다.</li>
+</ul>
+<p>Claude는 사람이 해야 할 일이 생기면 메시지로 부탁하는 대신 <code>request_user_action</code> 도구로 이 줄을 만듭니다. 출력 붙여넣기와 "확인해줘" 왕복이 필요 없어집니다.</p>
+
+<!-- ===================== MOD 4 ===================== -->
+<h2 id="m4">4. plan-track — 단계 진행 트래커</h2>
+<p class="lead">3단계 이상의 계획을 한 줄 진행 표시로 보여주고, 버튼 하나로 다음 단계를 지시합니다. 프로젝트 폴더별로 저장되어 새 세션에서도 이어집니다.</p>
+<figure>
+<div class="band">
+  <div class="ln"><span class="tag-plan">계획</span><b>클로드 모드 5종 만들기</b>
+    <span class="swap" style="--t:9s"><span><span style="color:var(--teal)">✔</span><span style="color:var(--indigo)">▶</span><span class="dim">○○○ 1/5</span></span><span><span style="color:var(--teal)">✔✔✔</span><span style="color:var(--indigo)">▶</span><span class="dim">○ 3/5</span></span><span><span style="color:var(--teal)">✔✔✔✔✔</span><span style="color:var(--teal)"> 모두 완료</span></span></span>
+    <span class="push"><span class="btn">다음 단계</span><span class="btn">×</span></span></div>
+</div>
+<figcaption>✔ 완료 · ▶ 진행 중 · ○ 대기 · ✘ 막힘</figcaption>
+</figure>
+<ul>
+  <li>Claude가 계획을 제안하거나 내가 계획을 받아들이면 <code>set_plan</code>으로 등록하고, 단계마다 <code>update_plan</code>으로 표시를 바꿉니다.</li>
+  <li><kbd>다음 단계</kbd>(진행 중이면 <kbd>계속</kbd>) — "계획 ○○의 다음 단계 '3. …'를 진행해줘"를 내 메시지로 보냅니다. Claude가 응답하는 동안에는 숨겨집니다.</li>
+  <li><kbd>×</kbd> / <kbd>닫기</kbd> — 계획을 지웁니다. 모든 단계가 끝나면 "모두 완료"와 <kbd>닫기</kbd>가 표시됩니다.</li>
+  <li>같은 폴더에서 새 세션을 열면 진행 줄이 그대로 다시 나타나고, 계획 요약이 Claude의 지침에 짧게 들어가 대화를 다시 읽지 않아도 이어서 진행할 수 있습니다.</li>
+</ul>
+<div class="note"><p>계획 요약은 세션이 시작될 때 한 번만 지침에 넣고 세션 중에는 바꾸지 않습니다. 지침이 중간에 바뀌면 대화 전체의 캐시가 무효화되기 때문입니다(1번 모드의 목적과 같음).</p></div>
+
+<!-- ===================== MOD 5 ===================== -->
+<h2 id="m5">5. change-check — 코드 변경 확인</h2>
+<p class="lead">Claude가 수정한 파일을 응답이 끝날 때 자동으로 검사하고, 실패하면 버튼 하나로 오류를 넘깁니다. 오래 쌓인 미커밋 변경도 경고합니다.</p>
+<figure>
+<div class="band">
+  <div class="ln"><span class="tag-plan">검사</span><span class="swap" style="--t:8s"><span class="dim">검사 중…</span><span style="color:var(--red)">✘ python: SyntaxError: '(' was never closed</span><span style="color:var(--teal)">✔ 파일 2개 · python, sh -n</span></span><span class="push"><span class="btn">오류 전달</span><span class="btn">×</span></span></div>
+  <div class="ln"><span style="color:var(--amber)">⚠ 미커밋 3개 · 마지막 커밋 33시간 전</span></div>
+</div>
+</figure>
+<table>
+  <tr><th style="width:28%">수정한 파일</th><th>검사</th></tr>
+  <tr><td><code>.py</code></td><td>Python 문법 검사(<code>py_compile</code>)</td></tr>
+  <tr><td><code>.sh</code> <code>.bash</code></td><td>셸 문법 검사(<code>sh -n</code>)</td></tr>
+  <tr><td><code>.json</code></td><td>JSON 파싱 검사</td></tr>
+  <tr><td><code>.js</code> <code>.mjs</code> <code>.cjs</code></td><td><code>node --check</code></td></tr>
+  <tr><td><code>.ts</code> <code>.tsx</code></td><td>프로젝트에 TypeScript가 설치된 경우에만 <code>tsc --noEmit</code> (다운로드하지 않음)</td></tr>
+  <tr><td>프로젝트 명령</td><td>지정하면(예: <code>npm test</code>) 위 검사 대신 실행. Claude에게 "이 프로젝트 검사는 npm test로 해줘"라고 하면 <code>set_check_command</code>로 저장되고 세션이 바뀌어도 유지.</td></tr>
+</table>
+<ul>
+  <li><kbd>오류 전달</kbd> — 오류 내용을 붙여 "확인하고 고쳐줘"를 보냅니다. 고친 뒤 다음 응답이 끝나면 다시 검사합니다.</li>
+  <li>통과 표시는 다음 메시지를 보내면 사라집니다. <code>/check</code>로 언제든 다시 검사할 수 있습니다.</li>
+  <li>git 프로젝트에서 변경이 있고 마지막 커밋이 24시간 이상 지났으면 미커밋 경고를 띄웁니다.</li>
+  <li>Edit·Write로 고친 파일만 추적합니다. <code>sed</code> 같은 셸 명령으로 고친 파일은 감지하지 않습니다.</li>
+  <li>이 모드가 실패하더라도 파일 수정과 메시지 전송은 그대로 진행되도록 만들어져 있습니다.</li>
+</ul>
+
+<!-- ===================== REFERENCE ===================== -->
+<h2 id="ref">참고표</h2>
+<h3>Claude가 쓰는 도구</h3>
+<table>
+  <tr><th>도구</th><th>모드</th><th>용도</th></tr>
+  <tr><td><code>watch_job</code> / <code>stop_job</code></td><td>job-watch</td><td>오래 걸리는 작업 감시 등록 / 중지</td></tr>
+  <tr><td><code>request_user_action</code></td><td>handoff</td><td>사람이 할 일 표시 + 확인 명령</td></tr>
+  <tr><td><code>set_plan</code> / <code>update_plan</code></td><td>plan-track</td><td>계획 등록 / 단계 상태 변경</td></tr>
+  <tr><td><code>set_check_command</code></td><td>change-check</td><td>프로젝트별 검사 명령 지정</td></tr>
+</table>
+<h3>슬래시 명령</h3>
+<table>
+  <tr><th>명령</th><th>동작</th></tr>
+  <tr><td><code>/jobs</code></td><td>작업 감시 창 열기</td></tr>
+  <tr><td><code>/check</code></td><td>수정한 파일 검사를 지금 실행</td></tr>
+</table>
+<h3>저장되는 데이터</h3>
+<table>
+  <tr><th>모드</th><th>저장 내용</th><th>범위</th></tr>
+  <tr><td>context-band</td><td>세션별 마지막 응답 시각(최근 50개)</td><td>이 컴퓨터</td></tr>
+  <tr><td>plan-track</td><td>프로젝트 폴더별 계획(최근 30개)</td><td>이 컴퓨터</td></tr>
+  <tr><td>change-check</td><td>프로젝트 폴더별 검사 명령</td><td>이 컴퓨터</td></tr>
+  <tr><td>job-watch · handoff</td><td>현재 세션의 작업·할 일</td><td>세션 동안만</td></tr>
+</table>
+<p>외부 서버로 보내는 데이터는 없습니다. 확인·검사 명령은 사용자 권한으로 이 컴퓨터에서 실행됩니다.</p>
+
+<h2 id="faq">문제 해결</h2>
+<table>
+  <tr><th style="width:34%">증상</th><th>해결</th></tr>
+  <tr><td>설치 후에도 아무것도 안 보임</td><td>새 세션을 열어야 적용됩니다. <code>claude plugin list</code>에서 5개 모드가 <code>✔ loaded</code>인지 확인하세요.</td></tr>
+  <tr><td>"Operation not permitted"</td><td>터미널의 iCloud Drive 접근 권한 문제. 설치 방법 A(Finder 복사)를 쓰세요.</td></tr>
+  <tr><td>계획·할 일 줄이 안 보임</td><td>등록된 계획이나 할 일이 있을 때만 나타납니다. 정상입니다.</td></tr>
+  <tr><td>막대 위에 마우스를 올려도 정보가 안 나옴</td><td>마우스 이벤트를 전달하지 않는 터미널에서는 호버가 동작하지 않습니다. 숫자와 Free space는 항상 표시됩니다.</td></tr>
+  <tr><td>Context 막대가 두 개</td><td>같은 모드가 두 위치에 설치된 경우입니다. <code>claude plugin list</code>로 중복을 찾아 하나를 지우세요.</td></tr>
+  <tr><td>캐시 카운트다운이 실제와 다름</td><td>1시간 캐시 기준입니다. 5분 캐시 환경이면 <code>CACHE_TTL_MS</code>를 조정하세요.</td></tr>
+</table>
+
+<h2 id="dev">구조와 수정</h2>
+<pre><code>mods/&lt;모드&gt;/
+├─ .claude-plugin/plugin.json   이름·버전·설명
+├─ hooks/hooks.json             모듈 목록
+├─ hooks/register.tsx           모드 본체
+├─ types/index.d.ts             상태 타입
+└─ tests/*.test.tsx             테스트</code></pre>
+<pre><code>claude plugin validate ~/.claude/skills/context-band   # 구조 검사
+claude plugin test ~/.claude/skills/context-band       # 테스트 실행</code></pre>
+<p>수정한 내용은 다음 새 세션부터 적용됩니다. 다섯 모드 모두 테스트(총 32개)를 통과한 상태로 배포됩니다.</p>
+
+</div>
+</body>
+</html>

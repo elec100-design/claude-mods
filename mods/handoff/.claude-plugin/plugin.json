@@ -1,0 +1,6 @@
+{
+  "name": "handoff",
+  "version": "0.1.0",
+  "description": "로그인·인증처럼 사용자가 직접 해야 하는 일을 입력창 위에 띄우고, 끝나면 확인 결과와 함께 Claude에게 넘깁니다",
+  "types": "./types/index.d.ts"
+}

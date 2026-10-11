@@ -1,0 +1,6 @@
+{
+  "name": "plan-track",
+  "version": "0.1.0",
+  "description": "단계별 계획의 진행 상황을 입력창 위에 보여주고, 다음 단계 버튼과 세션 간 이어가기를 제공합니다",
+  "types": "./types/index.d.ts"
+}
