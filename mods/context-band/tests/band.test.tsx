@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { barCells, CACHE_TTL_MS, formatMinutes, formatTokens } from '../hooks/register'
+import { barCells, CACHE_TTL_MS, formatMinutes, formatTokens, idleStep, KEEP_PROMPT, statusText } from '../hooks/register'
 
 const BAND = {
   component: 'AbovePrompt',
@@ -25,6 +25,7 @@ function world(on: On, total: number) {
   const submitted: { text: string; origin?: unknown }[] = []
   const filled: string[] = []
   on('ui.toast', async () => ({ value: undefined }) as never)
+  on('ui.status', async () => ({ value: undefined }) as never)
   on('ui.render', { component: 'AbovePrompt' }, async ($, e) => {
     const { Box } = $.ui.resolve(e)
     return <Box />
@@ -76,6 +77,13 @@ test('formats token counts and minutes', () => {
   expect(formatTokens(1_000_000)).toBe('1.0M')
   expect(formatMinutes(42)).toBe('42분')
   expect(formatMinutes(133)).toBe('2시간 13분')
+})
+
+test('status line carries the figures and the cache countdown', () => {
+  const snap = { total: 412_000, max: 1_000_000, percent: 41, rows: [] }
+  expect(statusText(snap, null, 0)).toBe('Context 412.0k / 1.0M (41%)')
+  expect(statusText(snap, 1_000, 1_000 + 23 * 60_000)).toBe('Context 412.0k / 1.0M (41%) · 캐시 37분')
+  expect(statusText(snap, 1_000, 1_000 + CACHE_TTL_MS)).toBe('Context 412.0k / 1.0M (41%) · 캐시 만료')
 })
 
 test('bar cells fill the width exactly', () => {
@@ -195,5 +203,73 @@ test('the handoff-note button writes Handoff.md, keeps the old one, and copies t
   expect(files['/proj/Handoff.prev.md']).toBe('old note')
   expect(copied[0]).toContain('/proj/Handoff.md')
   expect(await ui.find({ key: 'handoff-note' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('idle rule: keep warm while cheaper than lapsing, then note once, small contexts left alone', () => {
+  // 400k context, 60k of it fixed: a keep costs 40k, a handoff ~184k, a rewrite 800k.
+  const big = { total: 400_000, base: 60_000, noted: false }
+  expect(idleStep({ ...big, keeps: 0 })).toBe('keep')
+  expect(idleStep({ ...big, keeps: 3 })).toBe('keep')
+  expect(idleStep({ ...big, keeps: 4 })).toBe('note')
+  expect(idleStep({ ...big, keeps: 4, noted: true })).toBe('none')
+  expect(idleStep({ ...big, keeps: -1 })).toBe('none')
+  expect(idleStep({ total: 50_000, base: 30_000, keeps: 0, noted: false })).toBe('none')
+})
+
+test('near expiry while idle the cache is kept warm by a fork, then a note is written without touching the clipboard', async ($, on) => {
+  const { clock } = world(on, 400_000)
+  const asked: string[] = []
+  const files: Record<string, string> = {}
+  const copied: string[] = []
+  on('session.start', async () => ({ cwd: '/proj' }) as never)
+  on('model.fork', async (_$, e) => {
+    const prompt = (e as { prompt: string }).prompt
+    asked.push(prompt)
+    const usage = { input_tokens: 10, output_tokens: 1, cache_read_input_tokens: 399_000, cache_creation_input_tokens: 0 }
+    return { value: { isAnswered: true, text: prompt === KEEP_PROMPT ? '.' : '# 인계 노트', usage } } as never
+  })
+  on('fs.exists', async () => ({ value: false }) as never)
+  on('fs.write', async (_$, e) => {
+    const w = e as { path: string; text: string }
+    files[w.path] = w.text
+    return { value: undefined } as never
+  })
+  on('ui.copy', async (_$, e) => {
+    copied.push((e as { text: string }).text)
+    return { value: { isCopied: true } } as never
+  })
+  await ($ as unknown as { session: { start: (e: unknown) => Promise<unknown> } }).session.start({ cwd: '/proj', surface: 'desktop', isInteractive: true })
+  await $.turn.complete(TURN)
+
+  await clock.advance(50 * 60_000)
+  await clock.settle()
+  expect(asked.length).toBe(0)
+
+  // Base here is the 4.6k system prompt: a handoff (~77k) costs less than two keeps (40k each).
+  await clock.advance(6 * 60_000)
+  await clock.settle()
+  expect(asked).toEqual([KEEP_PROMPT])
+  const band = await $.ui.mount({ plugin: 'context-band', surface: 'terminal', ...BAND } as never)
+  expect(await band.find({ type: 'Text', text: /유지 1회/ })).toBeDefined()
+  await band.unmount()
+
+  await clock.advance(56 * 60_000)
+  await clock.settle()
+  expect(asked.length).toBe(2)
+  expect(asked[1]).toContain('인계 노트')
+  expect(files['/proj/Handoff.md']).toContain('인계 노트')
+  expect(copied.length).toBe(0)
+
+  // Nothing more once the note is written and the cache lapses.
+  await clock.advance(3 * 60 * 60_000)
+  await clock.settle()
+  expect(asked.length).toBe(2)
+
+  // Back after expiry: the held prompt offers the new session.
+  await $.prompt.submit({ text: 'continue', wait: false } as never)
+  const ui = await $.ui.mount({ plugin: 'context-band', surface: 'desktop', ...BAND } as never)
+  await ui.press({ key: 'copy-handoff' })
+  expect(copied[0]).toContain('/proj/Handoff.md')
   await ui.unmount()
 })

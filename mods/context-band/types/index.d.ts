@@ -26,6 +26,7 @@ declare module 'claude-code' {
       now: number
       pending: PendingPrompt | null
       isWritingNote: boolean
+      idle: { keeps: number; noted: boolean }
     }
   }
 }
