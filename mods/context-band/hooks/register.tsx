@@ -9,6 +9,16 @@ export const CACHE_TTL_MS = 60 * 60 * 1000
 export const GUARD_MIN_TOKENS = 100_000
 // Past this, suggest compacting once the turn ends.
 export const COMPACT_HINT_TOKENS = 200_000
+// Prices relative to an uncached input token: a 1-hour cache write, a cache
+// read and an output token.
+const WRITE_RATE = 2
+const READ_RATE = 0.1
+const OUTPUT_RATE = 5
+// About how long a handoff note runs.
+const NOTE_TOKENS = 4_000
+// While nobody is working, act this long before the cache expires.
+export const KEEP_LEAD_MS = 5 * 60_000
+export const KEEP_PROMPT = '(캐시 유지용 확인 요청입니다. 아무 작업도 하지 말고 "." 한 글자만 답해.)'
 const STORE_KEY = 'lastResponseAt'
 const STORE_LIMIT = 50
 
@@ -17,6 +27,8 @@ const lastResponseAt = atom({ plugin: 'context-band', key: 'lastResponseAt' } as
 const nowAtom = atom({ plugin: 'context-band', key: 'now' } as const, 0)
 const pending = atom({ plugin: 'context-band', key: 'pending' } as const, null)
 const isWritingNote = atom({ plugin: 'context-band', key: 'isWritingNote' } as const, false)
+// What the idle check has done since the last turn.
+const idle = atom({ plugin: 'context-band', key: 'idle' } as const, { keeps: 0, noted: false })
 
 // The session's folder, where the handoff note is written.
 let cwd = ''
@@ -35,6 +47,26 @@ export const NOTE_PROMPT = [
   '## 새 세션 첫 지시 (새 세션에서 바로 붙여 넣을 한두 문장)',
   '경로, 명령, 설정값은 그대로 적고, 확인하지 않은 내용은 (추정)이라고 표시해. 노트 본문만 출력해.',
 ].join('\n')
+
+export type IdleStep = 'keep' | 'note' | 'none'
+
+// What to do as the cache nears expiry while nobody works: the ski-rental
+// rule. Keeping the cache warm one more hour costs a cache read of the whole
+// context; letting it lapse costs, on return, either rewriting the context or
+// starting a new session from a handoff note (written now, while it is cheap).
+// Keep warm while the keeps so far plus one cost no more than the cheaper of
+// the two, then stop, writing the note first when it is the cheaper one.
+// `base` is the part of the context a new session carries too (system prompt,
+// tools, memory): everything but the messages.
+// `keeps` is -1 once a keep found the cache already gone: nothing is cheap then.
+export function idleStep(o: { total: number; base: number; keeps: number; noted: boolean }): IdleStep {
+  if (o.total < GUARD_MIN_TOKENS || o.keeps < 0) return 'none'
+  const keep = o.total * READ_RATE
+  const rewrite = o.total * WRITE_RATE
+  const handoff = o.total * READ_RATE + NOTE_TOKENS * OUTPUT_RATE + (o.base + NOTE_TOKENS) * WRITE_RATE
+  if ((o.keeps + 1) * keep <= Math.min(rewrite, handoff)) return 'keep'
+  return !o.noted && handoff < rewrite ? 'note' : 'none'
+}
 
 export function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -86,6 +118,22 @@ async function refresh($: EngineInterface): Promise<ContextSnapshot | null> {
   return next
 }
 
+// The band's figures as one text line, for remote surfaces that draw no band.
+export function statusText(snap: ContextSnapshot, last: number | null, now: number): string {
+  let text = `Context ${formatTokens(snap.total)} / ${formatTokens(snap.max)} (${snap.percent}%)`
+  if (last !== null && now > 0) {
+    const leftMin = Math.ceil((last + CACHE_TTL_MS - now) / 60_000)
+    text += leftMin <= 0 ? ' · 캐시 만료' : ` · 캐시 ${leftMin}분`
+  }
+  return text
+}
+
+async function pushStatus($: EngineInterface): Promise<void> {
+  const snap = await read($, snapshot)
+  if (snap === null) return
+  $.ui.status(statusText(snap, await read($, lastResponseAt), await read($, nowAtom)))
+}
+
 // The last response time per session, kept across restarts so a resumed
 // session knows how long it sat idle.
 type Saved = Record<string, number>
@@ -128,10 +176,50 @@ async function cancelPending($: EngineInterface): Promise<void> {
   await $.prompt.fill({ text: p.text })
 }
 
+// Read the whole prefix from the cache: a cache read restarts its hour.
+async function keepWarm($: EngineInterface, total: number): Promise<boolean> {
+  const reply = await $.model.fork({ prompt: KEEP_PROMPT })
+  if (!reply.isAnswered || reply.usage.cache_read_input_tokens < total / 2) return false
+  const at = await $.clock.now()
+  await update($, lastResponseAt, () => at)
+  await saveResponseTime($, at)
+  return true
+}
+
+// Whether a main-loop turn runs, and whether the idle check is mid-call.
+let isTurnRunning = false
+let isActing = false
+
+// Runs on the minute tick: near expiry, with no turn running and no prompt
+// held, keep the cache warm or write the handoff note, whichever idleStep says.
+async function checkIdle($: EngineInterface, now: number): Promise<void> {
+  const last = await read($, lastResponseAt)
+  const snap = await read($, snapshot)
+  if (isActing || isTurnRunning || last === null || snap === null) return
+  const left = last + CACHE_TTL_MS - now
+  if (left <= 0 || left > KEEP_LEAD_MS || (await read($, pending)) || (await read($, isWritingNote))) return
+  const state = await read($, idle)
+  const base = snap.rows.filter(r => r.kind === 'used' && r.name !== 'Messages').reduce((a, r) => a + r.tokens, 0)
+  const step = idleStep({ total: snap.total, base, keeps: state.keeps, noted: state.noted })
+  if (step === 'none') return
+  isActing = true
+  try {
+    if (step === 'keep') {
+      if (await keepWarm($, snap.total)) await update($, idle, s => ({ ...s, keeps: s.keeps + 1 }))
+      else await update($, idle, s => ({ ...s, keeps: -1 }))
+    } else {
+      await update($, idle, s => ({ ...s, noted: true }))
+      await update($, isWritingNote, () => true)
+      await writeHandoffNote($, true)
+    }
+  } finally {
+    isActing = false
+  }
+}
+
 export const register: Register = on => {
   let tick: { cancel: () => void } | null = null
   let compactHinted = false
-
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     cwd = e.cwd
@@ -142,9 +230,14 @@ export const register: Register = on => {
     await update($, nowAtom, () => started)
     tick?.cancel()
     tick = $.clock.every(60_000, () => {
-      void $.clock.now().then(t => update($, nowAtom, () => t))
+      void $.clock.now().then(async t => {
+        await update($, nowAtom, () => t)
+        await pushStatus($)
+        await checkIdle($, t)
+      })
     })
     await refresh($)
+    await pushStatus($)
     return result
   })
 
@@ -169,13 +262,21 @@ export const register: Register = on => {
     }
   })
 
+  on('turn.start', async ($, e, next) => {
+    if (!e.agentId) isTurnRunning = true
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
+    isTurnRunning = false
+    await update($, idle, () => ({ keeps: 0, noted: false }))
     const at = await $.clock.now()
     await update($, lastResponseAt, () => at)
     await update($, nowAtom, () => at)
     await saveResponseTime($, at)
     const snap = await refresh($)
+    await pushStatus($)
     if (snap && snap.total >= COMPACT_HINT_TOKENS && !compactHinted) {
       compactHinted = true
       $.ui.toast(`컨텍스트 ${formatTokens(snap.total)}: 작업 단계가 끝났다면 압축을 권장합니다`)
@@ -212,6 +313,8 @@ export const register: Register = on => {
     }
     const isLarge = snap.total >= COMPACT_HINT_TOKENS && !e.props.isWorking && held === null
     const writingNote = await read($, isWritingNote)
+    const idleState = await read($, idle)
+    if (cache && idleState.keeps > 0) cache.text += ` · 유지 ${idleState.keeps}회`
 
     // Each bar segment and its info entry share a hover scope: pointing at the
     // segment reveals the entry on the second line. A held prompt takes the
@@ -252,6 +355,11 @@ export const register: Register = on => {
             <Button key="compact-send" label="압축 후 보내기" onPress={() => sendPending($, true)} />
             <Text> </Text>
             <Button key="cancel" label="취소" onPress={() => cancelPending($)} />
+            {idleState.noted ? (
+              <Box marginLeft={1}>
+                <Button key="copy-handoff" label="새 세션으로 (Handoff.md)" onPress={() => copyHandoff($)} />
+              </Box>
+            ) : null}
           </Box>
         ) : (
           // Second line: free space always, the hovered segment's entry in front
@@ -311,10 +419,11 @@ async function startHandoffNote($: EngineInterface): Promise<void> {
 
 // Asks a fork of this conversation (served from its prompt cache, no turn added)
 // for a handoff note, writes it to Handoff.md in the session's folder, and puts
-// the new session's first message on the clipboard.
-async function writeHandoffNote($: EngineInterface): Promise<void> {
+// the new session's first message on the clipboard. Written by the idle check
+// (`auto`), it leaves the clipboard alone: the person is busy elsewhere.
+async function writeHandoffNote($: EngineInterface, auto = false): Promise<void> {
   try {
-    $.ui.toast('인계 노트 작성 중… (현재 대화 기준)')
+    if (!auto) $.ui.toast('인계 노트 작성 중… (현재 대화 기준)')
     const reply = await $.model.fork({ prompt: NOTE_PROMPT })
     if (!reply.isAnswered) {
       $.ui.toast(`인계 노트 실패: ${reply.reason}`)
@@ -326,7 +435,11 @@ async function writeHandoffNote($: EngineInterface): Promise<void> {
       if (typeof previous === 'string') await $.fs.write(`${cwd || '.'}/Handoff.prev.md`, previous)
     }
     await $.fs.write(path, `${reply.text.trim()}\n`)
-    const firstMessage = `${path} 를 읽고 이어서 진행해줘.`
+    if (auto) {
+      $.ui.toast('캐시를 계속 유지하는 것보다 새 세션이 저렴해 Handoff.md를 미리 작성했습니다')
+      return
+    }
+    const firstMessage = handoffMessage(path)
     const copied = await $.ui.copy({ text: firstMessage }).catch(() => ({ isCopied: false as const }))
     $.ui.toast(
       copied.isCopied
@@ -338,6 +451,15 @@ async function writeHandoffNote($: EngineInterface): Promise<void> {
   } finally {
     await update($, isWritingNote, () => false)
   }
+}
+
+function handoffMessage(path: string): string {
+  return `${path} 를 읽고 이어서 진행해줘.`
+}
+
+async function copyHandoff($: EngineInterface): Promise<void> {
+  const copied = await $.ui.copy({ text: handoffMessage(`${cwd || '.'}/Handoff.md`) }).catch(() => ({ isCopied: false as const }))
+  $.ui.toast(copied.isCopied ? '새 세션 첫 메시지를 클립보드에 복사했습니다' : '복사 실패: Handoff.md를 직접 여세요')
 }
 
 async function compactNow($: EngineInterface): Promise<void> {
